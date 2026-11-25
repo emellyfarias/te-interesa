@@ -1,0 +1,2069 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Te Interessa?</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#fff5f2',
+              100: '#ffe8e0',
+              200: '#ffcbb8',
+              400: '#ff7849',
+              500: '#f9531c',
+              600: '#ea3e0e',
+              700: '#c22e0e',
+            },
+            accent: {
+              50: '#f0fdfa',
+              100: '#ccfbf1',
+              600: '#0d9488',
+              700: '#0f766e',
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    /* Estilo suave para barra de rolagem horizontal de filtros em telas menores */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Grade de fundo do mapa simulado */
+    .map-canvas-bg {
+      background-color: #eef6f4;
+      background-image:
+        radial-gradient(circle at 22% 28%, rgba(13, 148, 136, 0.14) 0%, transparent 26%),
+        radial-gradient(circle at 76% 65%, rgba(249, 83, 28, 0.11) 0%, transparent 28%),
+        linear-gradient(to right, rgba(15, 23, 42, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(15, 23, 42, 0.05) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 44px 44px, 44px 44px;
+    }
+
+    /* Animação sutil para marcadores ativos no mapa */
+    @keyframes pulseRing {
+      0% {
+        transform: scale(0.95);
+        opacity: 0.75;
+      }
+      70% {
+        transform: scale(1.55);
+        opacity: 0;
+      }
+      100% {
+        transform: scale(1.55);
+        opacity: 0;
+      }
+    }
+
+    .marker-pulse::before {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 9999px;
+      background: currentColor;
+      animation: pulseRing 2.2s infinite;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="bg-stone-50 text-slate-900 font-sans antialiased min-h-screen flex flex-col">
+  <!-- Cabeçalho fixo com marca, busca e contador de salvos -->
+  <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-stone-200 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
+      <div class="flex flex-col md:flex-row md:items-center gap-3 md:gap-6">
+        <!-- Logo e identidade -->
+        <div class="flex items-center justify-between">
+          <button
+            type="button"
+            onclick="resetAllFilters()"
+            class="flex items-center gap-2.5 text-left group focus:outline-none"
+            aria-label="Te Interessa? Início"
+          >
+            <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center shadow-md shadow-brand-500/20 group-hover:scale-105 transition-transform">
+              <!-- Ícone de bússola / radar de eventos -->
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12Z" />
+              </svg>
+            </div>
+            <div>
+              <span class="text-xl font-extrabold tracking-tight text-slate-900">
+                Te Interessa<span class="text-brand-600">?</span>
+              </span>
+              <p class="text-[11px] text-slate-500 leading-none mt-0.5">
+                Radar de eventos da cidade e do estado
+              </p>
+            </div>
+          </button>
+
+          <!-- Botão de salvos no mobile -->
+          <div class="md:hidden flex items-center gap-1.5" id="mobileAuthArea">
+            <button
+              type="button"
+              onclick="openAuthModal('login')"
+              class="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-stone-100 transition cursor-pointer"
+            >
+              Entrar
+            </button>
+            <button
+              type="button"
+              onclick="openAuthModal('register')"
+              class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-brand-600 text-white shadow-xs hover:bg-brand-700 transition cursor-pointer"
+            >
+              Criar conta
+            </button>
+          </div>
+        </div>
+
+        <!-- Barra de busca principal -->
+        <div class="flex-1 relative">
+          <label for="searchInput" class="sr-only">Buscar eventos, bairros, cidades ou estilos</label>
+          <div class="relative flex items-center">
+            <svg class="w-5 h-5 text-slate-400 absolute left-3.5 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35M17 10.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" />
+            </svg>
+            <input
+              id="searchInput"
+              type="text"
+              placeholder="Buscar por evento, bairro, cidade, estilo ou época (ex.: Ponta Negra, mensal, teatro)..."
+              class="w-full pl-11 pr-10 py-2.5 rounded-2xl bg-stone-100 border border-transparent focus:bg-white focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition"
+            />
+            <button
+              type="button"
+              id="clearSearchBtn"
+              onclick="clearSearch()"
+              class="hidden absolute right-3 p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-stone-200/70 transition"
+              title="Limpar busca"
+              aria-label="Limpar busca"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Área de conta e salvos no desktop -->
+        <div class="hidden md:flex items-center gap-2.5" id="desktopAuthArea">
+          <button
+            type="button"
+            onclick="openAuthModal('login')"
+            class="px-4 py-2.5 rounded-2xl text-sm font-semibold text-slate-700 hover:bg-stone-100 transition cursor-pointer"
+          >
+            Entrar
+          </button>
+          <button
+            type="button"
+            onclick="openAuthModal('register')"
+            class="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-brand-600 text-white shadow-xs hover:bg-brand-700 transition cursor-pointer"
+          >
+            Criar conta
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Conteúdo principal -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    <!-- Banner de boas-vindas dinâmico (adapta quando logado) -->
+    <section id="heroBanner" class="rounded-3xl bg-gradient-to-r from-slate-900 via-slate-800 to-brand-900 text-white p-6 sm:p-8 shadow-md relative overflow-hidden">
+      <div class="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div class="max-w-3xl space-y-2.5">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/15 text-amber-200 backdrop-blur-sm">
+            <span>Manaus • Interior do Amazonas • Todo o Estado</span>
+          </span>
+          <h1 id="heroTitle" class="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight leading-tight">
+            O que combina com o seu momento hoje?
+          </h1>
+          <p id="heroSubtitle" class="text-sm sm:text-base text-slate-200 max-w-2xl">
+            Explore livremente eventos pontuais, encontros mensais que já viraram tradição no bairro e celebrações anuais. Quando algo chamar atenção, clique em <strong class="text-white">Tenho interesse</strong> para guardar na sua lista.
+          </p>
+        </div>
+
+        <!-- Card rápido "Vamos aos poucos" quando deslogado ou resumo de interesses quando logado -->
+        <div id="heroActionCard" class="shrink-0 bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl p-4 sm:max-w-xs space-y-2.5">
+          <p class="text-xs font-bold uppercase tracking-wider text-amber-200">Vamos aos poucos</p>
+          <p class="text-xs sm:text-sm text-slate-100 leading-relaxed">
+            Navegue sem cadastro. Crie sua conta gratuita só quando quiser salvar eventos ou receber sugestões personalizadas.
+          </p>
+          <div class="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onclick="openAuthModal('register')"
+              class="px-3.5 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold transition cursor-pointer"
+            >
+              Criar conta rápida
+            </button>
+            <button
+              type="button"
+              onclick="loginWithGuestAccount()"
+              class="px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold transition cursor-pointer"
+            >
+              Entrar como convidado
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Faixa de sugestões personalizadas (exibida quando logado com interesses) -->
+    <section id="personalizedBar" class="hidden bg-brand-50/90 border border-brand-200/80 rounded-3xl p-4 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div class="space-y-0.5">
+        <div class="flex items-center gap-2">
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-brand-600 text-white">
+            Te interessa isso?
+          </span>
+          <span id="personalizedHeadline" class="text-sm font-bold text-slate-900"></span>
+        </div>
+        <p id="personalizedSubtext" class="text-xs text-slate-600"></p>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          id="toggleRecommendedBtn"
+          onclick="toggleRecommendedOnly()"
+          class="px-3.5 py-2 rounded-xl text-xs font-bold border border-brand-300 bg-white text-brand-700 hover:bg-brand-100 transition cursor-pointer"
+        >
+          Ver só recomendados para mim
+        </button>
+      </div>
+    </section>
+
+    <!-- Painel de filtros rápidos e intuitivos -->
+    <section aria-label="Filtros de eventos" class="bg-white rounded-3xl border border-stone-200/90 p-4 sm:p-5 shadow-sm space-y-4">
+      <!-- Linha 1: Localização (Cidade / Bairro / Estado) -->
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-500">
+            1. Localização (Manaus, Interior &amp; Estado)
+          </span>
+          <span id="activeLocationLabel" class="text-xs font-medium text-brand-600">Todo o Estado</span>
+        </div>
+        <div id="locationChips" class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1"></div>
+      </div>
+
+      <!-- Linha 2: Quando, Recorrência e Época do Ano -->
+      <div class="space-y-2">
+        <span class="block text-xs font-bold uppercase tracking-wider text-slate-500">
+          2. Quando &amp; Recorrência
+        </span>
+        <div id="timingChips" class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1"></div>
+      </div>
+
+      <!-- Linha 3: Horário e Categoria / Estilo -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-1">
+        <div class="space-y-2">
+          <span class="block text-xs font-bold uppercase tracking-wider text-slate-500">
+            3. Horário do dia
+          </span>
+          <div id="periodChips" class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1"></div>
+        </div>
+
+        <div class="space-y-2">
+          <span class="block text-xs font-bold uppercase tracking-wider text-slate-500">
+            4. Categoria ou Gênero
+          </span>
+          <div id="categoryChips" class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1"></div>
+        </div>
+      </div>
+
+      <!-- Barra inferior de resumo, aba Meus Salvos, limpar filtros e alternância Grade x Mapa -->
+      <div class="pt-3 border-t border-stone-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2.5 text-sm">
+          <span id="resultsCounter" class="font-semibold text-slate-800">Carregando eventos...</span>
+
+          <!-- Atalho rápido para Meus Eventos Salvos -->
+          <button
+            type="button"
+            id="savedFilterChip"
+            onclick="handleSavedTabClick()"
+            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border border-stone-200 bg-stone-50 text-slate-700 hover:border-brand-300 hover:text-brand-700 transition cursor-pointer"
+          >
+            <svg class="w-3.5 h-3.5 text-brand-600" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+            </svg>
+            <span>Meus Eventos Salvos (<span id="filterBarSavedCount">0</span>)</span>
+          </button>
+
+          <button
+            type="button"
+            id="resetFiltersBtn"
+            onclick="resetAllFilters()"
+            class="hidden text-xs font-semibold text-brand-600 hover:text-brand-700 underline underline-offset-2 cursor-pointer"
+          >
+            Limpar filtros
+          </button>
+        </div>
+
+        <!-- Alternância Grade de Cards / Mapa Interativo -->
+        <div class="inline-flex p-1 rounded-2xl bg-stone-100 border border-stone-200/80 self-start sm:self-auto" role="tablist" aria-label="Modo de visualização">
+          <button
+            type="button"
+            role="tab"
+            id="viewGridBtn"
+            aria-selected="true"
+            onclick="setViewMode('grid')"
+            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold bg-white text-slate-900 shadow-sm transition cursor-pointer"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6Zm10 0a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V6ZM4 16a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2Zm10 0a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-2Z" />
+            </svg>
+            <span>Grade</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="viewMapBtn"
+            aria-selected="false"
+            onclick="setViewMode('map')"
+            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 transition cursor-pointer"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13 6-3m-6 3V7m6 10 4.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-.553-.894L15 4m0 13V4m0 0L9 7" />
+            </svg>
+            <span>Mapa</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Visualização 1: Grade de Cards -->
+    <section id="gridViewSection" aria-label="Lista de eventos">
+      <div id="eventsGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+
+      <!-- Estado vazio quando nenhum evento corresponde aos filtros -->
+      <div id="emptyState" class="hidden bg-white rounded-3xl border border-stone-200 p-10 text-center space-y-3">
+        <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mx-auto text-xl font-bold">
+          ?
+        </div>
+        <h2 class="text-lg font-bold text-slate-900">Nenhum evento encontrado com esses filtros</h2>
+        <p class="text-sm text-slate-500 max-w-md mx-auto">
+          Tente combinar menos filtros, mudar o horário ou explorar outros bairros e cidades.
+        </p>
+        <button
+          type="button"
+          onclick="resetAllFilters()"
+          class="mt-2 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition cursor-pointer"
+        >
+          Mostrar todos os eventos
+        </button>
+      </div>
+    </section>
+
+    <!-- Visualização 2: Mapa Interativo Simulado -->
+    <section id="mapViewSection" class="hidden" aria-label="Mapa interativo de eventos">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+        <!-- Área do mapa com marcadores clicáveis -->
+        <div class="lg:col-span-8 map-canvas-bg rounded-3xl border border-stone-200 relative min-h-[420px] sm:min-h-[500px] overflow-hidden shadow-sm">
+          <!-- Rótulos de referência geográfica simulados -->
+          <div class="hidden sm:flex items-center justify-between px-4 py-3 text-[11px] font-semibold text-slate-500/80 pointer-events-none select-none">
+            <span>ZONA OESTE / PONTA NEGRA • MANAUS, AM</span>
+            <span>CENTRO HISTÓRICO &amp; REGIÃO • AM / BR</span>
+          </div>
+
+          <!-- Linhas decorativas simulando eixos viários / rios -->
+          <svg class="absolute inset-0 w-full h-full pointer-events-none opacity-35" viewBox="0 0 800 500" preserveAspectRatio="none">
+            <path d="M 40 390 Q 260 270 460 230 T 760 110" fill="none" stroke="#0d9488" stroke-width="5" stroke-dasharray="10 8" />
+            <path d="M 110 80 L 340 240 L 660 360" fill="none" stroke="#64748b" stroke-width="2" />
+            <path d="M 520 40 L 420 460" fill="none" stroke="#64748b" stroke-width="2" />
+          </svg>
+
+          <!-- Contêiner onde os marcadores são injetados via JS -->
+          <div id="mapMarkersLayer" class="absolute inset-0"></div>
+
+          <!-- Legenda inferior do mapa -->
+          <div class="absolute bottom-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 bg-white/90 backdrop-blur px-3.5 py-2 rounded-2xl border border-stone-200/80 text-xs text-slate-600">
+            <span>Clique em um marcador para inspecionar o evento</span>
+            <span class="inline-flex items-center gap-1.5 font-medium text-slate-800">
+              <span class="w-2.5 h-2.5 rounded-full bg-brand-600 inline-block"></span>
+              Pin selecionado
+            </span>
+          </div>
+        </div>
+
+        <!-- Painel lateral com detalhes do marcador selecionado -->
+        <aside id="mapDetailPanel" class="lg:col-span-4 bg-white rounded-3xl border border-stone-200 p-5 shadow-sm flex flex-col justify-between">
+          <div id="mapSelectedContent" class="space-y-4">
+            <p class="text-sm text-slate-500">Selecione um pin no mapa para ver os detalhes do evento.</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal de detalhes completos do evento -->
+  <div
+    id="eventModal"
+    class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modalTitle"
+  >
+    <div class="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-stone-200 p-6 space-y-5">
+      <div class="flex items-start justify-between gap-4">
+        <div id="modalBadges" class="flex flex-wrap items-center gap-2"></div>
+        <button
+          type="button"
+          onclick="closeEventModal()"
+          class="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-stone-100 transition cursor-pointer"
+          aria-label="Fechar detalhes"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="space-y-2">
+        <h2 id="modalTitle" class="text-2xl font-extrabold text-slate-900"></h2>
+        <p id="modalLocation" class="text-sm font-medium text-accent-700"></p>
+      </div>
+
+      <p id="modalDescription" class="text-sm sm:text-base text-slate-600 leading-relaxed"></p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-stone-50 rounded-2xl p-4 border border-stone-200/70 text-sm">
+        <div>
+          <span class="block text-xs font-semibold text-slate-400 uppercase">Quando acontece</span>
+          <span id="modalSchedule" class="font-semibold text-slate-800"></span>
+        </div>
+        <div>
+          <span class="block text-xs font-semibold text-slate-400 uppercase">Horário &amp; Estilo</span>
+          <span id="modalPeriodCategory" class="font-semibold text-slate-800"></span>
+        </div>
+        <div>
+          <span class="block text-xs font-semibold text-slate-400 uppercase">Recorrência</span>
+          <span id="modalRecurrence" class="font-semibold text-brand-700"></span>
+        </div>
+        <div>
+          <span class="block text-xs font-semibold text-slate-400 uppercase">Entrada</span>
+          <span id="modalPrice" class="font-semibold text-slate-800"></span>
+        </div>
+        <div class="sm:col-span-2">
+          <span class="block text-xs font-semibold text-slate-400 uppercase">Endereço</span>
+          <span id="modalAddress" class="font-medium text-slate-700"></span>
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+        <button
+          type="button"
+          id="modalInterestBtn"
+          class="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm bg-brand-50 text-brand-700 hover:bg-brand-100 transition cursor-pointer"
+        >
+          Tenho interesse • Salvar evento
+        </button>
+        <button
+          type="button"
+          onclick="closeEventModal()"
+          class="px-5 py-3 rounded-2xl border border-stone-200 text-sm font-semibold text-slate-700 hover:bg-stone-50 transition cursor-pointer"
+        >
+          Fechar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal amigável de Cadastro e Login Direto ("Vamos aos poucos") -->
+  <div
+    id="authModal"
+    class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="authModalHeading"
+  >
+    <div class="bg-white rounded-3xl max-w-md w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-stone-200 p-6 space-y-5">
+      <!-- Topo do modal de autenticação -->
+      <div class="flex items-start justify-between gap-3">
+        <div class="space-y-1">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-brand-50 text-brand-700">
+            Vamos aos poucos • Conta gratuita
+          </span>
+          <h2 id="authModalHeading" class="text-xl font-extrabold text-slate-900">
+            Guarde seus eventos favoritos
+          </h2>
+        </div>
+        <button
+          type="button"
+          onclick="closeAuthModal()"
+          class="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-stone-100 transition cursor-pointer"
+          aria-label="Fechar janela de acesso"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Aviso contextual quando veio de um clique em "Tenho interesse" -->
+      <div id="pendingEventBanner" class="hidden rounded-2xl bg-amber-50 border border-amber-200 p-3.5 text-xs text-amber-900 space-y-1">
+        <p class="font-bold">Quase lá! Seu evento já está na fila:</p>
+        <p id="pendingEventTitle" class="text-amber-800 font-medium"></p>
+        <p class="text-amber-700">Entre ou crie sua conta rápida que nós salvamos ele automaticamente na sua lista.</p>
+      </div>
+
+      <!-- Abas Entrar / Criar conta -->
+      <div class="grid grid-cols-2 p-1 rounded-2xl bg-stone-100 border border-stone-200/80" role="tablist">
+        <button
+          type="button"
+          id="authTabLogin"
+          onclick="switchAuthTab('login')"
+          class="py-2 rounded-xl text-sm font-bold bg-white text-slate-900 shadow-xs transition cursor-pointer"
+        >
+          Entrar
+        </button>
+        <button
+          type="button"
+          id="authTabRegister"
+          onclick="switchAuthTab('register')"
+          class="py-2 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-900 transition cursor-pointer"
+        >
+          Criar conta
+        </button>
+      </div>
+
+      <!-- Mensagem de erro ou feedback de validação -->
+      <div id="authFeedback" class="hidden rounded-2xl p-3 text-xs font-medium"></div>
+
+      <!-- Formulário de Login Direto -->
+      <form id="loginForm" onsubmit="handleLoginSubmit(event)" class="space-y-3.5" novalidate>
+        <div class="space-y-1.5">
+          <label for="loginEmail" class="block text-xs font-bold text-slate-700">E-mail</label>
+          <input
+            id="loginEmail"
+            type="email"
+            required
+            placeholder="voce@exemplo.com"
+            class="w-full px-3.5 py-2.5 rounded-2xl bg-stone-50 border border-stone-200 focus:bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 text-sm outline-none transition"
+          />
+        </div>
+
+        <div class="space-y-1.5">
+          <label for="loginPassword" class="block text-xs font-bold text-slate-700">Senha</label>
+          <input
+            id="loginPassword"
+            type="password"
+            required
+            placeholder="Sua senha"
+            class="w-full px-3.5 py-2.5 rounded-2xl bg-stone-50 border border-stone-200 focus:bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 text-sm outline-none transition"
+          />
+        </div>
+
+        <button
+          type="submit"
+          class="w-full py-3 px-4 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-sm transition cursor-pointer"
+        >
+          Entrar agora
+        </button>
+      </form>
+
+      <!-- Formulário de Cadastro Rápido -->
+      <form id="registerForm" onsubmit="handleRegisterSubmit(event)" class="hidden space-y-3.5" novalidate>
+        <div class="space-y-1.5">
+          <label for="regName" class="block text-xs font-bold text-slate-700">Como você quer ser chamado(a)?</label>
+          <input
+            id="regName"
+            type="text"
+            required
+            placeholder="Ex.: Ana Clara"
+            class="w-full px-3.5 py-2.5 rounded-2xl bg-stone-50 border border-stone-200 focus:bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 text-sm outline-none transition"
+          />
+        </div>
+
+        <div class="space-y-1.5">
+          <label for="regEmail" class="block text-xs font-bold text-slate-700">E-mail</label>
+          <input
+            id="regEmail"
+            type="email"
+            required
+            placeholder="voce@exemplo.com"
+            class="w-full px-3.5 py-2.5 rounded-2xl bg-stone-50 border border-stone-200 focus:bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 text-sm outline-none transition"
+          />
+        </div>
+
+        <div class="space-y-1.5">
+          <label for="regPassword" class="block text-xs font-bold text-slate-700">Crie uma senha (mín. 4 caracteres)</label>
+          <input
+            id="regPassword"
+            type="password"
+            required
+            placeholder="••••••"
+            class="w-full px-3.5 py-2.5 rounded-2xl bg-stone-50 border border-stone-200 focus:bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 text-sm outline-none transition"
+          />
+        </div>
+
+        <!-- Seleção opcional de interesses favoritos -->
+        <div class="space-y-2 pt-1">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-700">O que mais te interessa? <span class="font-normal text-slate-400">(opcional)</span></span>
+          </div>
+          <div id="registerInterestOptions" class="flex flex-wrap gap-1.5"></div>
+        </div>
+
+        <button
+          type="submit"
+          class="w-full py-3 px-4 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-sm transition cursor-pointer"
+        >
+          Criar conta e entrar
+        </button>
+      </form>
+
+      <!-- Acesso em 1 clique para demonstração -->
+      <div class="pt-3 border-t border-stone-100 space-y-2 text-center">
+        <p class="text-[11px] text-slate-400">Quer só testar a plataforma agora?</p>
+        <button
+          type="button"
+          onclick="loginWithDemoAccount()"
+          class="w-full py-2.5 px-4 rounded-2xl border border-stone-200 bg-stone-50 hover:bg-stone-100 text-slate-700 font-semibold text-xs transition cursor-pointer"
+        >
+          Entrar com conta demo em 1 clique
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast discreto de confirmação -->
+  <div
+    id="toastBanner"
+    class="hidden fixed bottom-5 right-5 z-50 bg-slate-900 text-white text-sm font-medium px-4 py-3 rounded-2xl shadow-lg flex items-center gap-2.5"
+    role="status"
+    aria-live="polite"
+  >
+    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+    <span id="toastText"></span>
+  </div>
+
+  <script>
+    /**
+     * Chaves de armazenamento local para persistência de usuários e sessão.
+     */
+    const STORAGE_KEYS = {
+      USERS: 'te_interessa_users_v1',
+      SESSION: 'te_interessa_session_v1'
+    };
+
+    /**
+     * Base de dados inicial de eventos do "Te Interessa?".
+     * Inclui eventos pontuais, recorrentes mensais e anuais/sazonais em Manaus e interior do AM.
+     */
+    const EVENTS = [
+      {
+        id: 'evt-1',
+        title: 'Samba & Por-do-Sol na Ponta Negra',
+        neighborhood: 'Ponta Negra',
+        city: 'Manaus',
+        state: 'AM',
+        regionKey: 'ponta-negra',
+        address: 'Anfiteatro da Ponta Negra — Av. Coronel Teixeira, Manaus - AM',
+        timingTags: ['hoje', 'fim-de-semana', 'mensal'],
+        recurrenceBadge: 'Todo 1º domingo do mês',
+        recurrenceType: 'mensal',
+        period: 'tarde',
+        periodLabel: 'Tarde • 16h30 às 21h',
+        category: 'musica',
+        categoryLabel: 'Música',
+        scheduleText: 'Hoje • 16h30',
+        price: 'Gratuito',
+        description: 'Roda de samba ao ar livre com vista para o Rio Negro, artistas locais e clima descontraído para reunir amigos no fim da tarde.',
+        mapCoords: { x: 18, y: 34 },
+        accentColor: 'bg-brand-600'
+      },
+      {
+        id: 'evt-2',
+        title: 'Feira Criativa e Gastronomia do Largo',
+        neighborhood: 'Centro',
+        city: 'Manaus',
+        state: 'AM',
+        regionKey: 'manaus-centro',
+        address: 'Largo de São Sebastião — Centro Histórico, Manaus - AM',
+        timingTags: ['fim-de-semana', 'mensal'],
+        recurrenceBadge: 'Mensal',
+        recurrenceType: 'mensal',
+        period: 'noite',
+        periodLabel: 'Noite • 18h às 23h',
+        category: 'gastronomia',
+        categoryLabel: 'Gastronomia',
+        scheduleText: 'Sábado • 18h',
+        price: 'Entrada livre',
+        description: 'Barracas de culinária regional amazônica, cafés especiais, vinil e pequenas marcas independentes no coração histórico da cidade.',
+        mapCoords: { x: 45, y: 56 },
+        accentColor: 'bg-amber-600'
+      },
+      {
+        id: 'evt-3',
+        title: 'Festival Folclórico de Parintins & Ensaios',
+        neighborhood: 'Centro',
+        city: 'Parintins',
+        state: 'AM',
+        regionKey: 'interior-am',
+        address: 'Bumbódromo de Parintins — Av. Paraíba, Parintins - AM',
+        timingTags: ['anual'],
+        recurrenceBadge: 'Evento anual',
+        recurrenceType: 'anual',
+        period: 'noite',
+        periodLabel: 'Noite • 20h à 1h',
+        category: 'teatro-arte',
+        categoryLabel: 'Teatro & Arte',
+        scheduleText: 'Temporada Anual',
+        price: 'A partir de R$ 45',
+        description: 'Alegorias monumentais, toadas históricas, cortejos e espetáculo cênico a céu aberto que celebra a cultura amazônica todos os anos.',
+        mapCoords: { x: 78, y: 26 },
+        accentColor: 'bg-purple-600'
+      },
+      {
+        id: 'evt-4',
+        title: 'Corrida & Pedal Matinal Adrianópolis',
+        neighborhood: 'Adrianópolis',
+        city: 'Manaus',
+        state: 'AM',
+        regionKey: 'adrianopolis',
+        address: 'Praça Chile / Av. Maceió — Adrianópolis, Manaus - AM',
+        timingTags: ['hoje', 'mensal'],
+        recurrenceBadge: 'Todo 3º sábado do mês',
+        recurrenceType: 'mensal',
+        period: 'manha',
+        periodLabel: 'Manhã • 6h30 às 9h30',
+        category: 'esportes',
+        categoryLabel: 'Esportes',
+        scheduleText: 'Hoje • 6h30',
+        price: 'Gratuito',
+        description: 'Percurso leve de 5 km e passeio ciclístico em grupo com ponto de hidratação e aquecimento coletivo antes do calor forte.',
+        mapCoords: { x: 54, y: 40 },
+        accentColor: 'bg-accent-600'
+      },
+      {
+        id: 'evt-5',
+        title: 'Feira de Trocas, Plantas e Artesanato',
+        neighborhood: 'Adrianópolis',
+        city: 'Manaus',
+        state: 'AM',
+        regionKey: 'adrianopolis',
+        address: 'Rua Belo Horizonte — Adrianópolis, Manaus - AM',
+        timingTags: ['fim-de-semana'],
+        recurrenceBadge: 'Evento único',
+        recurrenceType: 'unico',
+        period: 'manha',
+        periodLabel: 'Manhã • 8h30 às 12h30',
+        category: 'feiras',
+        categoryLabel: 'Feiras',
+        scheduleText: 'Domingo • 8h30',
+        price: 'Gratuito',
+        description: 'Encontro para trocar mudas, livros e peças autorais, conversar com produtores locais e tomar um brunch tranquilo.',
+        mapCoords: { x: 60, y: 49 },
+        accentColor: 'bg-emerald-600'
+      },
+      {
+        id: 'evt-6',
+        title: 'Sessão Eletrônica & Groove da Madrugada',
+        neighborhood: 'Ponta Negra',
+        city: 'Manaus',
+        state: 'AM',
+        regionKey: 'ponta-negra',
+        address: 'Espaço Cultural Marina — Ponta Negra, Manaus - AM',
+        timingTags: ['fim-de-semana'],
+        recurrenceBadge: 'Evento único',
+        recurrenceType: 'unico',
+        period: 'madrugada',
+        periodLabel: 'Madrugada • 0h às 4h30',
+        category: 'musica',
+        categoryLabel: 'Música',
+        scheduleText: 'Sábado • 0h',
+        price: 'R$ 30',
+        description: 'DJs convidados em sets longos de house, disco e brasilidades eletrônicas em pista climatizada.',
+        mapCoords: { x: 27, y: 45 },
+        accentColor: 'bg-indigo-600'
+      },
+      {
+        id: 'evt-7',
+        title: 'Festa do Cupuaçu & Mostra Cultural',
+        neighborhood: 'Centro',
+        city: 'Presidente Figueiredo',
+        state: 'AM',
+        regionKey: 'interior-am',
+        address: 'Praça da Vitória — Centro, Presidente Figueiredo - AM',
+        timingTags: ['fim-de-semana', 'anual'],
+        recurrenceBadge: 'Evento anual',
+        recurrenceType: 'anual',
+        period: 'noite',
+        periodLabel: 'Noite • 19h às 23h',
+        category: 'feiras',
+        categoryLabel: 'Feiras',
+        scheduleText: 'Sexta • 19h',
+        price: 'Gratuito',
+        description: 'Feira agroindustrial, gastronomia regional, shows musicais e artesanato celebrando os frutos e cachoeiras da terra.',
+        mapCoords: { x: 69, y: 66 },
+        accentColor: 'bg-rose-600'
+      },
+      {
+        id: 'evt-8',
+        title: 'Hackathon & Meetup Comunidade Tech Manaus',
+        neighborhood: 'Centro',
+        city: 'Manaus',
+        state: 'AM',
+        regionKey: 'manaus-centro',
+        address: 'Casarão da Inovação Cassina — Centro, Manaus - AM',
+        timingTags: ['hoje', 'mensal'],
+        recurrenceBadge: 'Mensal',
+        recurrenceType: 'mensal',
+        period: 'tarde',
+        periodLabel: 'Tarde • 14h às 19h',
+        category: 'tecnologia',
+        categoryLabel: 'Tecnologia',
+        scheduleText: 'Hoje • 14h',
+        price: 'Gratuito',
+        description: 'Palestras práticas, demonstração de projetos locais, café e networking entre desenvolvedores, designers e estudantes.',
+        mapCoords: { x: 48, y: 27 },
+        accentColor: 'bg-sky-600'
+      },
+      {
+        id: 'evt-9',
+        title: 'Espetáculo Amazônico no Teatro Amazonas',
+        neighborhood: 'Centro',
+        city: 'Manaus',
+        state: 'AM',
+        regionKey: 'manaus-centro',
+        address: 'Largo de São Sebastião, s/n — Centro, Manaus - AM',
+        timingTags: ['fim-de-semana'],
+        recurrenceBadge: 'Temporada especial',
+        recurrenceType: 'anual',
+        period: 'noite',
+        periodLabel: 'Noite • 20h às 22h',
+        category: 'teatro-arte',
+        categoryLabel: 'Teatro & Arte',
+        scheduleText: 'Domingo • 20h',
+        price: 'R$ 20 (meia R$ 10)',
+        description: 'Montagem cênica com trilha sonora ao vivo inspirada nas lendas e histórias ribeirinhas do Amazonas.',
+        mapCoords: { x: 41, y: 65 },
+        accentColor: 'bg-purple-600'
+      }
+    ];
+
+    // Opções dos filtros rápidos
+    const LOCATION_FILTERS = [
+      { id: 'all', label: 'Todo o Estado', short: 'Todo o Estado' },
+      { id: 'manaus-centro', label: 'Manaus - Centro', short: 'Manaus • Centro' },
+      { id: 'ponta-negra', label: 'Ponta Negra', short: 'Manaus • Ponta Negra' },
+      { id: 'adrianopolis', label: 'Adrianópolis', short: 'Manaus • Adrianópolis' },
+      { id: 'interior-am', label: 'Interior do AM', short: 'Interior do Amazonas' }
+    ];
+
+    const TIMING_FILTERS = [
+      { id: 'all', label: 'Qualquer data' },
+      { id: 'hoje', label: 'Hoje' },
+      { id: 'fim-de-semana', label: 'Fim de Semana' },
+      { id: 'mensal', label: 'Todo mês / Mensal' },
+      { id: 'anual', label: 'Anual / Sazonal' }
+    ];
+
+    const PERIOD_FILTERS = [
+      { id: 'all', label: 'Qualquer horário' },
+      { id: 'manha', label: 'Manhã' },
+      { id: 'tarde', label: 'Tarde' },
+      { id: 'noite', label: 'Noite' },
+      { id: 'madrugada', label: 'Madrugada' }
+    ];
+
+    const CATEGORY_FILTERS = [
+      { id: 'all', label: 'Todas as categorias' },
+      { id: 'musica', label: 'Música' },
+      { id: 'feiras', label: 'Feiras' },
+      { id: 'gastronomia', label: 'Gastronomia' },
+      { id: 'teatro-arte', label: 'Teatro & Arte' },
+      { id: 'esportes', label: 'Esportes' },
+      { id: 'tecnologia', label: 'Tecnologia' }
+    ];
+
+    // Interesses selecionáveis no cadastro
+    const REGISTER_INTEREST_CHOICES = [
+      { id: 'musica', label: 'Música' },
+      { id: 'feiras', label: 'Feiras' },
+      { id: 'gastronomia', label: 'Gastronomia' },
+      { id: 'teatro-arte', label: 'Teatro & Arte' },
+      { id: 'esportes', label: 'Esportes' },
+      { id: 'tecnologia', label: 'Tecnologia' }
+    ];
+
+    // Estado central da aplicação
+    const state = {
+      search: '',
+      location: 'all',
+      timing: 'all',
+      period: 'all',
+      category: 'all',
+      savedOnly: false,
+      recommendedOnly: false,
+      viewMode: 'grid',
+      selectedMapEventId: EVENTS[0].id,
+      currentUser: null, // { name, email, interests: [], savedIds: [] }
+      pendingSaveEventId: null,
+      selectedRegisterInterests: new Set(['musica', 'gastronomia'])
+    };
+
+    let toastTimeout = null;
+
+    /**
+     * Lê a lista de usuários cadastrados do localStorage.
+     */
+    function getStoredUsers() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEYS.USERS);
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    /**
+     * Salva a lista atualizada de usuários no localStorage.
+     */
+    function saveStoredUsers(users) {
+      try {
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+      } catch (e) {
+        // Ignora falha caso storage esteja bloqueado
+      }
+    }
+
+    /**
+     * Persiste a sessão do usuário logado e sincroniza seus eventos salvos.
+     */
+    function persistCurrentUser(userObj) {
+      state.currentUser = userObj;
+      try {
+        if (userObj) {
+          localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(userObj));
+          const users = getStoredUsers();
+          const idx = users.findIndex((u) => u.email.toLowerCase() === userObj.email.toLowerCase());
+          if (idx >= 0) {
+            users[idx] = userObj;
+          } else {
+            users.push(userObj);
+          }
+          saveStoredUsers(users);
+        } else {
+          localStorage.removeItem(STORAGE_KEYS.SESSION);
+        }
+      } catch (e) {
+        // Ignora falha de storage
+      }
+    }
+
+    /**
+     * Restaura sessão ativa caso o usuário já estivesse logado anteriormente.
+     */
+    function restoreSession() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEYS.SESSION);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.email) {
+            state.currentUser = {
+              name: parsed.name || 'Convidado',
+              email: parsed.email,
+              password: parsed.password || '',
+              interests: Array.isArray(parsed.interests) ? parsed.interests : [],
+              savedIds: Array.isArray(parsed.savedIds) ? parsed.savedIds : []
+            };
+          }
+        }
+      } catch (e) {
+        state.currentUser = null;
+      }
+    }
+
+    /**
+     * Verifica se um evento específico está salvo pelo usuário atual.
+     */
+    function isEventSaved(eventId) {
+      if (!state.currentUser) return false;
+      return state.currentUser.savedIds.includes(eventId);
+    }
+
+    /**
+     * Exibe um aviso breve no canto inferior direito.
+     */
+    function showToast(message) {
+      const banner = document.getElementById('toastBanner');
+      const textEl = document.getElementById('toastText');
+      textEl.textContent = message;
+      banner.classList.remove('hidden');
+
+      if (toastTimeout) clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        banner.classList.add('hidden');
+      }, 2800);
+    }
+
+    /**
+     * Retorna as iniciais do nome do usuário para o avatar.
+     */
+    function getUserInitials(name) {
+      const parts = (name || 'U').trim().split(/\s+/);
+      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+
+    /**
+     * Atualiza o cabeçalho, banner e barra personalizada conforme o estado de login.
+     */
+    function updateAuthUI() {
+      const desktopAuth = document.getElementById('desktopAuthArea');
+      const mobileAuth = document.getElementById('mobileAuthArea');
+      const heroTitle = document.getElementById('heroTitle');
+      const heroSubtitle = document.getElementById('heroSubtitle');
+      const heroActionCard = document.getElementById('heroActionCard');
+      const personalizedBar = document.getElementById('personalizedBar');
+      const filterBarSavedCount = document.getElementById('filterBarSavedCount');
+      const savedFilterChip = document.getElementById('savedFilterChip');
+
+      const savedCount = state.currentUser ? state.currentUser.savedIds.length : 0;
+      filterBarSavedCount.textContent = savedCount;
+
+      if (state.savedOnly) {
+        savedFilterChip.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-brand-600 text-white shadow-xs transition cursor-pointer';
+      } else {
+        savedFilterChip.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border border-stone-200 bg-stone-50 text-slate-700 hover:border-brand-300 hover:text-brand-700 transition cursor-pointer';
+      }
+
+      if (state.currentUser) {
+        const firstName = state.currentUser.name.split(' ')[0];
+        const initials = getUserInitials(state.currentUser.name);
+
+        desktopAuth.innerHTML = `
+          <button
+            type="button"
+            onclick="toggleSavedOnly()"
+            class="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl text-sm font-semibold border transition cursor-pointer ${
+              state.savedOnly
+                ? 'bg-brand-600 text-white border-brand-600'
+                : 'border-stone-200 bg-white text-slate-700 hover:border-brand-300 hover:bg-brand-50/70 hover:text-brand-700'
+            }"
+          >
+            <svg class="w-4 h-4 ${state.savedOnly ? 'text-white' : 'text-brand-600'}" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+            </svg>
+            <span>Meus Salvos (${savedCount})</span>
+          </button>
+
+          <div class="flex items-center gap-2 pl-2 border-l border-stone-200">
+            <div class="w-9 h-9 rounded-full bg-brand-100 text-brand-700 font-extrabold text-xs flex items-center justify-center border border-brand-200">
+              ${initials}
+            </div>
+            <span class="text-sm font-semibold text-slate-800 max-w-[110px] truncate">${firstName}</span>
+            <button
+              type="button"
+              onclick="logoutUser()"
+              class="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+            >
+              Sair
+            </button>
+          </div>
+        `;
+
+        mobileAuth.innerHTML = `
+          <button
+            type="button"
+            onclick="toggleSavedOnly()"
+            class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              state.savedOnly
+                ? 'bg-brand-600 text-white'
+                : 'bg-brand-50 text-brand-700 border border-brand-200'
+            }"
+          >
+            <span>Salvos (${savedCount})</span>
+          </button>
+          <button
+            type="button"
+            onclick="logoutUser()"
+            class="px-2 py-1.5 rounded-xl text-xs font-semibold text-slate-500 hover:bg-stone-100 transition cursor-pointer"
+            title="Sair da conta"
+          >
+            Sair
+          </button>
+        `;
+
+        heroTitle.textContent = `Olá, ${firstName}! O que te interessa hoje?`;
+        heroSubtitle.textContent = 'Seus eventos salvos ficam guardados na sua conta para você consultar quando quiser.';
+
+        heroActionCard.innerHTML = `
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-amber-200">Sua lista pessoal</span>
+            <span class="px-2 py-0.5 rounded-full bg-white/15 text-white text-xs font-bold">${savedCount} salvos</span>
+          </div>
+          <p class="text-xs text-slate-100 leading-relaxed">
+            ${
+              savedCount > 0
+                ? 'Você já guardou eventos na sua agenda. Clique abaixo para revisar seus favoritos.'
+                : 'Clique em "Tenho interesse" em qualquer card para começar a montar sua lista.'
+            }
+          </p>
+          <button
+            type="button"
+            onclick="toggleSavedOnly()"
+            class="w-full py-2 px-3 rounded-xl bg-white text-slate-900 hover:bg-amber-100 text-xs font-bold transition cursor-pointer"
+          >
+            ${state.savedOnly ? 'Voltar para todos os eventos' : 'Ver Meus Eventos Salvos'}
+          </button>
+        `;
+
+        // Barra de recomendações baseada nos interesses do cadastro
+        const userInterests = state.currentUser.interests || [];
+        if (userInterests.length > 0) {
+          const labels = userInterests
+            .map((id) => REGISTER_INTEREST_CHOICES.find((c) => c.id === id)?.label)
+            .filter(Boolean);
+
+          personalizedBar.classList.remove('hidden');
+          document.getElementById('personalizedHeadline').textContent = `Sugestões baseadas no seu perfil, ${firstName}`;
+          document.getElementById('personalizedSubtext').textContent = `Interesses escolhidos: ${labels.join(', ')}.`;
+
+          const recBtn = document.getElementById('toggleRecommendedBtn');
+          recBtn.textContent = state.recommendedOnly
+            ? 'Mostrando recomendados (ver todos)'
+            : 'Ver só recomendados para mim';
+          recBtn.className = state.recommendedOnly
+            ? 'px-3.5 py-2 rounded-xl text-xs font-bold bg-brand-600 text-white shadow-xs transition cursor-pointer'
+            : 'px-3.5 py-2 rounded-xl text-xs font-bold border border-brand-300 bg-white text-brand-700 hover:bg-brand-100 transition cursor-pointer';
+        } else {
+          personalizedBar.classList.add('hidden');
+        }
+      } else {
+        // Estado deslogado: experiência "Vamos aos poucos"
+        desktopAuth.innerHTML = `
+          <button
+            type="button"
+            onclick="openAuthModal('login')"
+            class="px-4 py-2.5 rounded-2xl text-sm font-semibold text-slate-700 hover:bg-stone-100 transition cursor-pointer"
+          >
+            Entrar
+          </button>
+          <button
+            type="button"
+            onclick="openAuthModal('register')"
+            class="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-brand-600 text-white shadow-xs hover:bg-brand-700 transition cursor-pointer"
+          >
+            Criar conta
+          </button>
+        `;
+
+        mobileAuth.innerHTML = `
+          <button
+            type="button"
+            onclick="openAuthModal('login')"
+            class="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-stone-100 transition cursor-pointer"
+          >
+            Entrar
+          </button>
+          <button
+            type="button"
+            onclick="openAuthModal('register')"
+            class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-brand-600 text-white shadow-xs hover:bg-brand-700 transition cursor-pointer"
+          >
+            Criar conta
+          </button>
+        `;
+
+        heroTitle.textContent = 'O que combina com o seu momento hoje?';
+        heroSubtitle.innerHTML =
+          'Explore livremente eventos pontuais, encontros mensais que já viraram tradição no bairro e celebrações anuais. Quando algo chamar atenção, clique em <strong class="text-white">Tenho interesse</strong> para guardar na sua lista.';
+
+        heroActionCard.innerHTML = `
+          <p class="text-xs font-bold uppercase tracking-wider text-amber-200">Vamos aos poucos</p>
+          <p class="text-xs sm:text-sm text-slate-100 leading-relaxed">
+            Navegue sem cadastro. Crie sua conta gratuita só quando quiser salvar eventos ou receber sugestões personalizadas.
+          </p>
+          <div class="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onclick="openAuthModal('register')"
+              class="px-3.5 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold transition cursor-pointer"
+            >
+              Criar conta rápida
+            </button>
+            <button
+              type="button"
+              onclick="loginWithGuestAccount()"
+              class="px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold transition cursor-pointer"
+            >
+              Entrar como convidado
+            </button>
+          </div>
+        `;
+
+        personalizedBar.classList.add('hidden');
+      }
+    }
+
+    /**
+     * Lida com o clique no botão "Tenho interesse" / "Salvar evento".
+     * Se deslogado, abre o modal amigável e guarda o evento para salvar logo após o acesso.
+     */
+    function toggleInterest(eventId, domEvent) {
+      if (domEvent) domEvent.stopPropagation();
+
+      const evt = EVENTS.find((item) => item.id === eventId);
+      if (!evt) return;
+
+      if (!state.currentUser) {
+        state.pendingSaveEventId = eventId;
+        openAuthModal('register', evt);
+        return;
+      }
+
+      const idx = state.currentUser.savedIds.indexOf(eventId);
+      if (idx >= 0) {
+        state.currentUser.savedIds.splice(idx, 1);
+        showToast(`Removido de Meus Salvos: ${evt.title}`);
+      } else {
+        state.currentUser.savedIds.push(eventId);
+        showToast(`Salvo na sua lista: ${evt.title}`);
+      }
+
+      persistCurrentUser(state.currentUser);
+      updateAuthUI();
+      renderFilteredEvents();
+
+      const modal = document.getElementById('eventModal');
+      if (!modal.classList.contains('hidden')) {
+        updateModalInterestButton(eventId);
+      }
+    }
+
+    /**
+     * Lida com o clique na aba "Meus Eventos Salvos".
+     */
+    function handleSavedTabClick() {
+      if (!state.currentUser) {
+        openAuthModal('login');
+        showToast('Entre ou crie uma conta rápida para ver seus eventos salvos.');
+        return;
+      }
+      toggleSavedOnly();
+    }
+
+    /**
+     * Alterna o filtro para exibir apenas os eventos salvos do usuário.
+     */
+    function toggleSavedOnly() {
+      state.savedOnly = !state.savedOnly;
+      if (state.savedOnly) {
+        state.recommendedOnly = false;
+      }
+      updateAuthUI();
+      renderFilteredEvents();
+    }
+
+    /**
+     * Alterna o filtro de recomendações baseadas nos interesses do cadastro.
+     */
+    function toggleRecommendedOnly() {
+      state.recommendedOnly = !state.recommendedOnly;
+      if (state.recommendedOnly) {
+        state.savedOnly = false;
+      }
+      updateAuthUI();
+      renderFilteredEvents();
+    }
+
+    /**
+     * Encerra a sessão do usuário sem perder os filtros de navegação atuais.
+     */
+    function logoutUser() {
+      state.savedOnly = false;
+      state.recommendedOnly = false;
+      persistCurrentUser(null);
+      updateAuthUI();
+      renderFilteredEvents();
+      showToast('Você saiu da sua conta. Continue explorando à vontade!');
+    }
+
+    /**
+     * Renderiza os botões selecionáveis de interesse dentro do formulário de cadastro.
+     */
+    function renderRegisterInterestChips() {
+      const container = document.getElementById('registerInterestOptions');
+      if (!container) return;
+
+      container.innerHTML = REGISTER_INTEREST_CHOICES.map((item) => {
+        const selected = state.selectedRegisterInterests.has(item.id);
+        return `
+          <button
+            type="button"
+            onclick="toggleRegisterInterestChoice('${item.id}')"
+            class="px-3 py-1.5 rounded-full text-xs font-semibold border transition cursor-pointer ${
+              selected
+                ? 'bg-brand-600 text-white border-brand-600'
+                : 'bg-stone-50 text-slate-700 border-stone-200 hover:border-brand-300'
+            }"
+          >
+            ${selected ? '✓ ' : '+ '}${item.label}
+          </button>
+        `;
+      }).join('');
+    }
+
+    /**
+     * Alterna uma categoria de interesse no formulário de cadastro.
+     */
+    function toggleRegisterInterestChoice(categoryId) {
+      if (state.selectedRegisterInterests.has(categoryId)) {
+        state.selectedRegisterInterests.delete(categoryId);
+      } else {
+        state.selectedRegisterInterests.add(categoryId);
+      }
+      renderRegisterInterestChips();
+    }
+
+    /**
+     * Abre o modal de Cadastro / Login direto.
+     */
+    function openAuthModal(initialTab = 'login', pendingEvent = null) {
+      const modal = document.getElementById('authModal');
+      const pendingBanner = document.getElementById('pendingEventBanner');
+      const pendingTitle = document.getElementById('pendingEventTitle');
+
+      hideAuthFeedback();
+
+      if (pendingEvent) {
+        pendingBanner.classList.remove('hidden');
+        pendingTitle.textContent = `"${pendingEvent.title}" (${pendingEvent.neighborhood} • ${pendingEvent.city})`;
+      } else if (!state.pendingSaveEventId) {
+        pendingBanner.classList.add('hidden');
+      }
+
+      renderRegisterInterestChips();
+      switchAuthTab(initialTab);
+      modal.classList.remove('hidden');
+    }
+
+    /**
+     * Fecha o modal de autenticação.
+     */
+    function closeAuthModal() {
+      document.getElementById('authModal').classList.add('hidden');
+      hideAuthFeedback();
+    }
+
+    /**
+     * Alterna entre as abas "Entrar" e "Criar conta" no modal.
+     */
+    function switchAuthTab(tab) {
+      const loginTab = document.getElementById('authTabLogin');
+      const registerTab = document.getElementById('authTabRegister');
+      const loginForm = document.getElementById('loginForm');
+      const registerForm = document.getElementById('registerForm');
+      const heading = document.getElementById('authModalHeading');
+
+      hideAuthFeedback();
+
+      if (tab === 'login') {
+        loginTab.className = 'py-2 rounded-xl text-sm font-bold bg-white text-slate-900 shadow-xs transition cursor-pointer';
+        registerTab.className = 'py-2 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-900 transition cursor-pointer';
+        loginForm.classList.remove('hidden');
+        registerForm.classList.add('hidden');
+        heading.textContent = 'Entrar na sua conta';
+      } else {
+        registerTab.className = 'py-2 rounded-xl text-sm font-bold bg-white text-slate-900 shadow-xs transition cursor-pointer';
+        loginTab.className = 'py-2 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-900 transition cursor-pointer';
+        registerForm.classList.remove('hidden');
+        loginForm.classList.add('hidden');
+        heading.textContent = 'Criar conta rápida';
+      }
+    }
+
+    /**
+     * Exibe mensagem de validação dentro do modal de autenticação.
+     */
+    function showAuthFeedback(message, isError = true) {
+      const box = document.getElementById('authFeedback');
+      box.textContent = message;
+      box.className = isError
+        ? 'rounded-2xl p-3 text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200'
+        : 'rounded-2xl p-3 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200';
+      box.classList.remove('hidden');
+    }
+
+    /**
+     * Oculta mensagens de validação do modal de autenticação.
+     */
+    function hideAuthFeedback() {
+      const box = document.getElementById('authFeedback');
+      if (box) box.classList.add('hidden');
+    }
+
+    /**
+     * Finaliza o login ou cadastro, salvando automaticamente o evento pendente se houver.
+     */
+    function completeAuthentication(userObj, welcomePrefix) {
+      let autoSavedTitle = null;
+
+      if (state.pendingSaveEventId) {
+        const pendingEvt = EVENTS.find((e) => e.id === state.pendingSaveEventId);
+        if (pendingEvt && !userObj.savedIds.includes(pendingEvt.id)) {
+          userObj.savedIds.push(pendingEvt.id);
+          autoSavedTitle = pendingEvt.title;
+        }
+        state.pendingSaveEventId = null;
+      }
+
+      persistCurrentUser(userObj);
+      closeAuthModal();
+      updateAuthUI();
+      renderFilteredEvents();
+
+      const eventModal = document.getElementById('eventModal');
+      if (!eventModal.classList.contains('hidden')) {
+        const currentModalTitle = document.getElementById('modalTitle').textContent;
+        const matched = EVENTS.find((e) => e.title === currentModalTitle);
+        if (matched) updateModalInterestButton(matched.id);
+      }
+
+      if (autoSavedTitle) {
+        showToast(`${welcomePrefix} "${autoSavedTitle}" foi salvo na sua lista!`);
+      } else {
+        showToast(`${welcomePrefix} Bem-vindo(a), ${userObj.name.split(' ')[0]}!`);
+      }
+    }
+
+    /**
+     * Processa o envio do formulário de Login direto.
+     */
+    function handleLoginSubmit(event) {
+      event.preventDefault();
+      const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+      const password = document.getElementById('loginPassword').value;
+
+      if (!email || !email.includes('@')) {
+        showAuthFeedback('Por favor, informe um e-mail válido.');
+        return;
+      }
+      if (!password || password.length < 4) {
+        showAuthFeedback('Informe sua senha (mínimo de 4 caracteres).');
+        return;
+      }
+
+      const users = getStoredUsers();
+      const found = users.find((u) => u.email.toLowerCase() === email);
+
+      if (found) {
+        if (found.password && found.password !== password) {
+          showAuthFeedback('Senha incorreta para este e-mail. Tente novamente ou acesse como convidado.');
+          return;
+        }
+        completeAuthentication(found, 'Login realizado!');
+        return;
+      }
+
+      // Login direto amigável: se ainda não existe localmente, cria sessão rápida com o e-mail informado
+      const derivedName = email
+        .split('@')[0]
+        .replace(/[._-]+/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+
+      const newUser = {
+        name: derivedName || 'Visitante',
+        email,
+        password,
+        interests: ['musica', 'feiras'],
+        savedIds: []
+      };
+
+      completeAuthentication(newUser, 'Acesso liberado!');
+    }
+
+    /**
+     * Entra com uma conta de convidado pronta em 1 clique para testes rápidos.
+     */
+    function loginWithGuestAccount() {
+      const guestEmail = 'convidado@teinteressa.local';
+      const users = getStoredUsers();
+      let guestUser = users.find((u) => u.email === guestEmail);
+
+      if (!guestUser) {
+        guestUser = {
+          name: 'Visitante Convidado',
+          email: guestEmail,
+          password: '',
+          interests: ['musica', 'gastronomia', 'teatro-arte'],
+          savedIds: ['evt-1', 'evt-2']
+        };
+      }
+
+      completeAuthentication(guestUser, 'Sessão de convidado ativada!');
+    }
+
+    /**
+     * Processa o envio do formulário de Cadastro Rápido.
+     */
+    function handleRegisterSubmit(event) {
+      event.preventDefault();
+      const name = document.getElementById('regName').value.trim();
+      const email = document.getElementById('regEmail').value.trim().toLowerCase();
+      const password = document.getElementById('regPassword').value;
+
+      if (!name || name.length < 2) {
+        showAuthFeedback('Por favor, informe seu nome ou apelido.');
+        return;
+      }
+      if (!email || !email.includes('@')) {
+        showAuthFeedback('Informe um endereço de e-mail válido.');
+        return;
+      }
+      if (!password || password.length < 4) {
+        showAuthFeedback('Crie uma senha com pelo menos 4 caracteres.');
+        return;
+      }
+
+      const users = getStoredUsers();
+      const existing = users.find((u) => u.email.toLowerCase() === email);
+      if (existing) {
+        showAuthFeedback('Este e-mail já está cadastrado. Use a aba "Entrar" para acessar sua conta.');
+        return;
+      }
+
+      const newUser = {
+        name,
+        email,
+        password,
+        interests: Array.from(state.selectedRegisterInterests),
+        savedIds: []
+      };
+
+      completeAuthentication(newUser, 'Conta criada com sucesso!');
+    }
+
+    /**
+     * Entra com uma conta de demonstração pronta em 1 clique para testes na apresentação.
+     */
+    function loginWithDemoAccount() {
+      const demoEmail = 'demo@teinteressa.am.br';
+      const users = getStoredUsers();
+      let demoUser = users.find((u) => u.email === demoEmail);
+
+      if (!demoUser) {
+        demoUser = {
+          name: 'Mariana Silva',
+          email: demoEmail,
+          password: 'demo',
+          interests: ['musica', 'gastronomia', 'teatro-arte'],
+          savedIds: ['evt-1', 'evt-2']
+        };
+      }
+
+      completeAuthentication(demoUser, 'Conta demo ativada!');
+    }
+    
+    /**
+     * Limpa o campo de busca textual.
+     */
+    function clearSearch() {
+      const input = document.getElementById('searchInput');
+      input.value = '';
+      state.search = '';
+      document.getElementById('clearSearchBtn').classList.add('hidden');
+      renderFilteredEvents();
+    }
+
+    /**
+     * Restaura todos os filtros para o estado inicial.
+     */
+    function resetAllFilters() {
+      state.search = '';
+      state.location = 'all';
+      state.timing = 'all';
+      state.period = 'all';
+      state.category = 'all';
+      state.savedOnly = false;
+      state.recommendedOnly = false;
+
+      const input = document.getElementById('searchInput');
+      input.value = '';
+      document.getElementById('clearSearchBtn').classList.add('hidden');
+
+      updateAuthUI();
+      renderChipGroups();
+      renderFilteredEvents();
+    }
+
+    /**
+     * Renderiza um grupo de chips de filtro e destaca a opção ativa.
+     */
+    function renderChipGroup(containerId, items, activeValue, onSelect) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = '';
+
+      items.forEach((item) => {
+        const isActive = item.id === activeValue;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = item.label;
+        btn.className = isActive
+          ? 'shrink-0 px-3.5 py-2 rounded-full text-xs sm:text-sm font-semibold bg-brand-600 text-white shadow-xs transition cursor-pointer'
+          : 'shrink-0 px-3.5 py-2 rounded-full text-xs sm:text-sm font-medium bg-stone-100 text-slate-700 hover:bg-stone-200/80 transition cursor-pointer';
+
+        btn.addEventListener('click', () => onSelect(item.id));
+        container.appendChild(btn);
+      });
+    }
+
+    /**
+     * Atualiza todos os grupos de chips visuais.
+     */
+    function renderChipGroups() {
+      const locObj = LOCATION_FILTERS.find((l) => l.id === state.location);
+      document.getElementById('activeLocationLabel').textContent = locObj ? locObj.short : 'Todo o Estado';
+
+      renderChipGroup('locationChips', LOCATION_FILTERS, state.location, (val) => {
+        state.location = val;
+        renderChipGroups();
+        renderFilteredEvents();
+      });
+
+      renderChipGroup('timingChips', TIMING_FILTERS, state.timing, (val) => {
+        state.timing = val;
+        renderChipGroups();
+        renderFilteredEvents();
+      });
+
+      renderChipGroup('periodChips', PERIOD_FILTERS, state.period, (val) => {
+        state.period = val;
+        renderChipGroups();
+        renderFilteredEvents();
+      });
+
+      renderChipGroup('categoryChips', CATEGORY_FILTERS, state.category, (val) => {
+        state.category = val;
+        renderChipGroups();
+        renderFilteredEvents();
+      });
+    }
+
+    /**
+     * Retorna a lista de eventos filtrados de acordo com o estado atual.
+     */
+    function getFilteredEvents() {
+      const term = state.search.trim().toLowerCase();
+
+      return EVENTS.filter((evt) => {
+        if (state.savedOnly && !isEventSaved(evt.id)) return false;
+
+        if (state.recommendedOnly && state.currentUser) {
+          const interests = state.currentUser.interests || [];
+          if (interests.length > 0 && !interests.includes(evt.category)) return false;
+        }
+
+        if (state.location !== 'all' && evt.regionKey !== state.location) return false;
+        if (state.timing !== 'all' && !evt.timingTags.includes(state.timing)) return false;
+        if (state.period !== 'all' && evt.period !== state.period) return false;
+        if (state.category !== 'all' && evt.category !== state.category) return false;
+
+        if (term) {
+          const haystack = [
+            evt.title,
+            evt.neighborhood,
+            evt.city,
+            evt.state,
+            evt.address,
+            evt.recurrenceBadge,
+            evt.categoryLabel,
+            evt.periodLabel,
+            evt.description
+          ]
+            .join(' ')
+            .toLowerCase();
+
+          if (!haystack.includes(term)) return false;
+        }
+
+        return true;
+      });
+    }
+
+    /**
+     * Estiliza a etiqueta visual de recorrência conforme o tipo do evento.
+     */
+    function getRecurrenceBadgeClasses(recurrenceType) {
+      if (recurrenceType === 'mensal') {
+        return 'bg-accent-50 text-accent-700 border-accent-200';
+      }
+      if (recurrenceType === 'anual') {
+        return 'bg-amber-50 text-amber-800 border-amber-200';
+      }
+      return 'bg-stone-100 text-slate-700 border-stone-200';
+    }
+
+    /**
+     * Renderiza os cards na visualização em grade.
+     */
+    function renderGrid(filtered) {
+      const gridEl = document.getElementById('eventsGrid');
+      const emptyEl = document.getElementById('emptyState');
+
+      if (filtered.length === 0) {
+        gridEl.innerHTML = '';
+        emptyEl.classList.remove('hidden');
+        return;
+      }
+
+      emptyEl.classList.add('hidden');
+      const userInterests = state.currentUser?.interests || [];
+
+      gridEl.innerHTML = filtered
+        .map((evt) => {
+          const saved = isEventSaved(evt.id);
+          const badgeClasses = getRecurrenceBadgeClasses(evt.recurrenceType);
+          const isMatchForUser = state.currentUser && userInterests.includes(evt.category);
+
+          return `
+            <article
+              onclick="openEventModal('${evt.id}')"
+              class="bg-white rounded-3xl border border-stone-200/90 p-5 shadow-xs hover:shadow-md hover:border-brand-200 transition flex flex-col justify-between gap-4 cursor-pointer"
+            >
+              <div class="space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${badgeClasses}">
+                      ${evt.recurrenceBadge}
+                    </span>
+                    ${
+                      isMatchForUser
+                        ? '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-brand-50 text-brand-700">Te interessa?</span>'
+                        : ''
+                    }
+                  </div>
+                  <span class="text-xs font-semibold text-slate-500">
+                    ${evt.categoryLabel}
+                  </span>
+                </div>
+
+                <div>
+                  <h2 class="text-lg font-bold text-slate-900 leading-snug">
+                    ${evt.title}
+                  </h2>
+                  <p class="text-xs sm:text-sm font-medium text-accent-700 mt-1">
+                    ${evt.neighborhood} • ${evt.city}, ${evt.state}
+                  </p>
+                </div>
+
+                <p class="text-sm text-slate-600 line-clamp-2">
+                  ${evt.description}
+                </p>
+              </div>
+
+              <div class="pt-3 border-t border-stone-100 space-y-3">
+                <div class="flex items-center justify-between text-xs text-slate-500 font-medium">
+                  <span>${evt.periodLabel}</span>
+                  <span class="text-slate-700 font-semibold">${evt.price}</span>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onclick="toggleInterest('${evt.id}', event)"
+                    class="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-bold transition cursor-pointer ${
+                      saved
+                        ? 'bg-brand-600 text-white shadow-xs hover:bg-brand-700'
+                        : 'bg-brand-50 text-brand-700 hover:bg-brand-100'
+                    }"
+                  >
+                    <svg class="w-4 h-4" fill="${saved ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                    </svg>
+                    <span>${saved ? 'Salvo na lista' : 'Tenho interesse'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onclick="openEventModal('${evt.id}', event)"
+                    class="px-3.5 py-2.5 rounded-2xl border border-stone-200 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-stone-50 transition cursor-pointer"
+                  >
+                    Detalhes
+                  </button>
+                </div>
+              </div>
+            </article>
+          `;
+        })
+        .join('');
+    }
+
+    /**
+     * Renderiza marcadores clicáveis no mapa simulado e o painel lateral do evento selecionado.
+     */
+    function renderMap(filtered) {
+      const layer = document.getElementById('mapMarkersLayer');
+      const panelContent = document.getElementById('mapSelectedContent');
+
+      if (filtered.length === 0) {
+        layer.innerHTML = '';
+        panelContent.innerHTML = `
+          <div class="text-center py-8 space-y-2">
+            <p class="font-bold text-slate-800">Nenhum pin neste filtro</p>
+            <p class="text-sm text-slate-500">Ajuste os filtros para ver eventos no mapa.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const stillVisible = filtered.some((e) => e.id === state.selectedMapEventId);
+      if (!stillVisible) {
+        state.selectedMapEventId = filtered[0].id;
+      }
+
+      layer.innerHTML = filtered
+        .map((evt) => {
+          const isSelected = evt.id === state.selectedMapEventId;
+          return `
+            <button
+              type="button"
+              onclick="selectMapPin('${evt.id}')"
+              style="left: ${evt.mapCoords.x}%; top: ${evt.mapCoords.y}%;"
+              class="-translate-x-1/2 -translate-y-1/2 absolute group focus:outline-none cursor-pointer"
+              title="${evt.title} — ${evt.neighborhood}"
+            >
+              <span class="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold shadow-md transition ${
+                isSelected
+                  ? 'bg-brand-600 text-white scale-110 ring-4 ring-brand-500/25 marker-pulse text-brand-600'
+                  : 'bg-white text-slate-900 border border-stone-200 hover:border-brand-400 hover:scale-105'
+              }">
+                <span class="w-2 h-2 rounded-full ${isSelected ? 'bg-white' : evt.accentColor}"></span>
+                <span class="whitespace-nowrap">${evt.neighborhood} (${evt.city})</span>
+              </span>
+            </button>
+          `;
+        })
+        .join('');
+
+      const selected = filtered.find((e) => e.id === state.selectedMapEventId) || filtered[0];
+      const saved = isEventSaved(selected.id);
+
+      panelContent.innerHTML = `
+        <div class="space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${getRecurrenceBadgeClasses(selected.recurrenceType)}">
+              ${selected.recurrenceBadge}
+            </span>
+            <span class="text-xs font-semibold text-slate-500">${selected.categoryLabel}</span>
+          </div>
+
+          <h3 class="text-xl font-extrabold text-slate-900">${selected.title}</h3>
+          <p class="text-sm font-medium text-accent-700">${selected.neighborhood} • ${selected.city}, ${selected.state}</p>
+          <p class="text-sm text-slate-600 leading-relaxed">${selected.description}</p>
+
+          <div class="rounded-2xl bg-stone-50 p-3.5 border border-stone-200/70 text-xs space-y-1.5">
+            <div><strong class="text-slate-700">Quando:</strong> <span class="text-slate-600">${selected.scheduleText}</span></div>
+            <div><strong class="text-slate-700">Horário:</strong> <span class="text-slate-600">${selected.periodLabel}</span></div>
+            <div><strong class="text-slate-700">Entrada:</strong> <span class="text-slate-600">${selected.price}</span></div>
+          </div>
+        </div>
+
+        <div class="pt-4 space-y-2">
+          <button
+            type="button"
+            onclick="toggleInterest('${selected.id}')"
+            class="w-full py-2.5 px-4 rounded-2xl text-sm font-bold transition cursor-pointer ${
+              saved
+                ? 'bg-brand-600 text-white hover:bg-brand-700'
+                : 'bg-brand-50 text-brand-700 hover:bg-brand-100'
+            }"
+          >
+            ${saved ? 'Salvo na lista' : 'Tenho interesse'}
+          </button>
+          <button
+            type="button"
+            onclick="openEventModal('${selected.id}')"
+            class="w-full py-2.5 px-4 rounded-2xl border border-stone-200 text-sm font-semibold text-slate-700 hover:bg-stone-50 transition cursor-pointer"
+          >
+            Abrir detalhes completos
+          </button>
+        </div>
+      `;
+    }
+
+    /**
+     * Seleciona um pin no mapa e atualiza o painel lateral.
+     */
+    function selectMapPin(eventId) {
+      state.selectedMapEventId = eventId;
+      renderFilteredEvents();
+    }
+
+    /**
+     * Alterna entre visualização em Grade e Mapa.
+     */
+    function setViewMode(mode) {
+      state.viewMode = mode;
+
+      const gridSection = document.getElementById('gridViewSection');
+      const mapSection = document.getElementById('mapViewSection');
+      const gridBtn = document.getElementById('viewGridBtn');
+      const mapBtn = document.getElementById('viewMapBtn');
+
+      if (mode === 'grid') {
+        gridSection.classList.remove('hidden');
+        mapSection.classList.add('hidden');
+
+        gridBtn.setAttribute('aria-selected', 'true');
+        mapBtn.setAttribute('aria-selected', 'false');
+        gridBtn.className = 'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold bg-white text-slate-900 shadow-sm transition cursor-pointer';
+        mapBtn.className = 'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 transition cursor-pointer';
+      } else {
+        gridSection.classList.add('hidden');
+        mapSection.classList.remove('hidden');
+
+        gridBtn.setAttribute('aria-selected', 'false');
+        mapBtn.setAttribute('aria-selected', 'true');
+        mapBtn.className = 'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 transition cursor-pointer';
+        mapBtn.className = 'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold bg-white text-slate-900 shadow-sm transition cursor-pointer';
+      }
+
+      renderFilteredEvents();
+    }
+
+    /**
+     * Atualiza contador de resultados e renderiza a visualização ativa.
+     */
+    function renderFilteredEvents() {
+      const filtered = getFilteredEvents();
+      const counterEl = document.getElementById('resultsCounter');
+      const resetBtn = document.getElementById('resetFiltersBtn');
+
+      const hasActiveFilter =
+        Boolean(state.search.trim()) ||
+        state.location !== 'all' ||
+        state.timing !== 'all' ||
+        state.period !== 'all' ||
+        state.category !== 'all' ||
+        state.savedOnly ||
+        state.recommendedOnly;
+
+      resetBtn.classList.toggle('hidden', !hasActiveFilter);
+
+      if (state.savedOnly) {
+        counterEl.textContent = `${filtered.length} ${filtered.length === 1 ? 'evento salvo' : 'eventos salvos'}`;
+      } else if (state.recommendedOnly) {
+        counterEl.textContent = `${filtered.length} ${filtered.length === 1 ? 'sugestão para você' : 'sugestões para você'}`;
+      } else {
+        counterEl.textContent = `${filtered.length} ${filtered.length === 1 ? 'evento encontrado' : 'eventos encontrados'}`;
+      }
+
+      if (state.viewMode === 'grid') {
+        renderGrid(filtered);
+      } else {
+        renderMap(filtered);
+      }
+    }
+
+    /**
+     * Atualiza o botão de interesse dentro do modal de detalhes.
+     */
+    function updateModalInterestButton(eventId) {
+      const btn = document.getElementById('modalInterestBtn');
+      const saved = isEventSaved(eventId);
+      btn.className = `flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl font-bold text-sm transition cursor-pointer ${
+        saved
+          ? 'bg-brand-600 text-white hover:bg-brand-700'
+          : 'bg-brand-50 text-brand-700 hover:bg-brand-100'
+      }`;
+      btn.innerHTML = `<span>${saved ? 'Salvo na lista (remover)' : 'Tenho interesse • Salvar evento'}</span>`;
+      btn.onclick = () => toggleInterest(eventId);
+    }
+
+    /**
+     * Abre o modal com informações detalhadas do evento selecionado.
+     */
+    function openEventModal(eventId, domEvent) {
+      if (domEvent) domEvent.stopPropagation();
+
+      const evt = EVENTS.find((item) => item.id === eventId);
+      if (!evt) return;
+
+      document.getElementById('modalBadges').innerHTML = `
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${getRecurrenceBadgeClasses(evt.recurrenceType)}">
+          ${evt.recurrenceBadge}
+        </span>
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-stone-100 text-slate-700">
+          ${evt.categoryLabel}
+        </span>
+      `;
+
+      document.getElementById('modalTitle').textContent = evt.title;
+      document.getElementById('modalLocation').textContent = `${evt.neighborhood} • ${evt.city}, ${evt.state}`;
+      document.getElementById('modalDescription').textContent = evt.description;
+      document.getElementById('modalSchedule').textContent = evt.scheduleText;
+      document.getElementById('modalPeriodCategory').textContent = `${evt.periodLabel} • ${evt.categoryLabel}`;
+      document.getElementById('modalRecurrence').textContent = evt.recurrenceBadge;
+      document.getElementById('modalPrice').textContent = evt.price;
+      document.getElementById('modalAddress').textContent = evt.address;
+
+      updateModalInterestButton(evt.id);
+
+      const modal = document.getElementById('eventModal');
+      modal.classList.remove('hidden');
+    }
+
+    /**
+     * Fecha o modal de detalhes do evento.
+     */
+    function closeEventModal() {
+      document.getElementById('eventModal').classList.add('hidden');
+    }
+
+    // Listeners globais de busca, teclado e fechamento de modais por backdrop
+    document.addEventListener('DOMContentLoaded', () => {
+      const searchInput = document.getElementById('searchInput');
+      const clearSearchBtn = document.getElementById('clearSearchBtn');
+      const eventModal = document.getElementById('eventModal');
+      const authModal = document.getElementById('authModal');
+
+      restoreSession();
+
+      searchInput.addEventListener('input', (e) => {
+        state.search = e.target.value;
+        clearSearchBtn.classList.toggle('hidden', !state.search.trim());
+        renderFilteredEvents();
+      });
+
+      eventModal.addEventListener('click', (e) => {
+        if (e.target === eventModal) closeEventModal();
+      });
+
+      authModal.addEventListener('click', (e) => {
+        if (e.target === authModal) closeAuthModal();
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          if (!authModal.classList.contains('hidden')) {
+            closeAuthModal();
+          } else if (!eventModal.classList.contains('hidden')) {
+            closeEventModal();
+          }
+        }
+      });
+
+      updateAuthUI();
+      renderChipGroups();
+      renderFilteredEvents();
+    });
+  </script>
+</body>
+</html>
